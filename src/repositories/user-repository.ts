@@ -11,7 +11,7 @@ export class UserRepository implements IUserRepository {
     this.database = dbClient;
   }
 
-  async create(newUser: CreateUser): Promise<User | Error> {
+  async create(newUser: CreateUser): Promise<undefined | Error> {
     try {
       const tx = await this.database.transaction('write');
       const result = await tx.execute({
@@ -27,7 +27,7 @@ export class UserRepository implements IUserRepository {
                 @username,
                 @email,
                 @password
-            ) RETURNING *`,
+            )`,
         args: {
           firstName: newUser.firstName,
           lastName: newUser.lastName ? newUser.lastName : null,
@@ -37,9 +37,12 @@ export class UserRepository implements IUserRepository {
         },
       });
 
-      await tx.commit();
+      if (result.rowsAffected === 0) {
+        await tx.rollback();
+        return;
+      }
 
-      return result.rows[0] as unknown as User;
+      await tx.commit();
     } catch (error) {
       return error as Error;
     }
@@ -69,26 +72,27 @@ export class UserRepository implements IUserRepository {
       const tx = await this.database.transaction('read');
       const result = await tx.execute({
         sql: `SELECT
-                    id,
-                    firstName,
-                    lastName,
-                    username,
-                    email,
-                    password,
-                    isActive,
-                    createdAt
-                FROM
-                    users
-                WHERE
-                    id = @id`,
+                id,
+                firstName,
+                lastName,
+                username,
+                email,
+                password,
+                isActive,
+                createdAt
+              FROM
+                users
+              WHERE
+                id = @id`,
         args: { id },
       });
+
+      tx.close();
 
       if (!result.rows[0]) {
         return null;
       }
 
-      tx.close();
       return result.rows[0] as unknown as User;
     } catch (error) {
       return error as Error;
@@ -118,11 +122,12 @@ export class UserRepository implements IUserRepository {
         args: { searchParam: emailOrUsername },
       });
 
+      tx.close();
+
       if (!result.rows[0]) {
         return null;
       }
 
-      tx.close();
       return result.rows[0] as unknown as User;
     } catch (error) {
       return error as Error;
