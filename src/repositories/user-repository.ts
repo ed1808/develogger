@@ -1,7 +1,8 @@
 import { Client } from '@libsql/client/.';
-import { CreateUser } from '../dtos/user/create';
+import { type CreateUser } from '../dtos/user';
 import { IUserRepository } from '../interfaces/user-repository';
 import { User } from '../models/user';
+import { UpdateUser } from '../dtos/user/update';
 
 export class UserRepository implements IUserRepository {
   private readonly database: Client;
@@ -123,6 +124,36 @@ export class UserRepository implements IUserRepository {
 
       tx.close();
       return result.rows[0] as unknown as User;
+    } catch (error) {
+      return error as Error;
+    }
+  }
+
+  async update(id: number, data: UpdateUser): Promise<undefined | Error> {
+    try {
+      const cols = Object.keys(data).map(col => `${col} = @${col}`).join(',');
+      const args: { [key: string]: string | number } = {};
+
+      Object.entries(data).forEach(([key, value]) => {
+        args[key] = value;
+      });
+      
+      args['id'] = id;
+
+      const sql = `UPDATE users SET ${cols} WHERE id = @id`;
+      
+      const tx = await this.database.transaction('write');
+      const result = await tx.execute({
+        sql,
+        args,
+      });
+
+      if (result.rowsAffected === 0) {
+        await tx.rollback();
+        return;
+      }
+
+      await tx.commit();
     } catch (error) {
       return error as Error;
     }
