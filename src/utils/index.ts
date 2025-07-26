@@ -1,2 +1,2 @@
 export { HttpStatusCode } from './http-status-codes';
-export { makePassword, validatePassword } from './security';
+export { Auth } from './auth';
